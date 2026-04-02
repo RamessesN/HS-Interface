@@ -9,6 +9,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
+#include <limits.h>
+
+#define ERROR(s) fprintf(stderr, "%s\n", s)
+#define ERRORF(s, ...) fprintf(stderr, s "\n", __VA_ARGS__)
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define VAL_CONSTRAIN(val) ((val) > 255.0f ? 255 : ((val) < 0.0f ? 0 : (uint8_t)(val)))
 
 /* The RGB values of a pixel. */
 struct Pixel {
@@ -22,57 +28,49 @@ struct Image {
     int width;
     int height;
     int nvalues;
-    struct Pixel *pixels;
+    struct Pixel *pixel_ptr;
 };
 
 /* Q3a: Free a struct Image and its contents */
-void free_image(struct Image *img)
-{
+void free_image(struct Image *img) {
     if (img != NULL) {
-        if (img->pixels != NULL) {
-            free(img->pixels);
-        }
+        free(img->pixel_ptr);
         free(img);
     }
 }
 
 /* Q3b: Opens and reads an image file, returning a pointer to a new struct Image.
  * On error, prints an error message and returns NULL. */
-struct Image *load_image(const char *filename)
-{
+struct Image *load_image(const char *filename) {
     /* Open the file for reading in binary mode */
     FILE *f = fopen(filename, "rb");
     if (f == NULL) {
-        fprintf(stderr, "File %s could not be opened.\n", filename);
+        ERROR("File openned failed.");
         return NULL;
     }
 
-    char magic[4];
+    struct Image *img = NULL;
+    char file_format[4];
     int width, height, nvalues;
 
-    /* Read the header */
-    if (fscanf(f, "%3s %d %d %d", magic, &width, &height, &nvalues) != 4) {
-        fprintf(stderr, "Error reading header from %s.\n", filename);
-        fclose(f);
-        return NULL;
+    // Header Validation
+    if (fscanf(f, "%3s %d %d %d", file_format, &width, &height, &nvalues) != 4) {
+        ERROR("Header read failed.");
+        goto err;
     }
 
-    /* Validate the HQ8 format and nvalues */
-    if (strcmp(magic, "HQ8") != 0 || nvalues != 3) {
-        fprintf(stderr, "Invalid image format or nvalues in %s.\n", filename);
-        fclose(f);
-        return NULL;
+    // HQ8 format and nvalues Validation
+    if (strcmp(file_format, "HQ8") != 0 || nvalues != 3) {
+        ERROR("Invalid file format or nvalues.");
+        goto err;
     }
 
-    /* Consume the single whitespace character after the header */
-    fgetc(f);
+    fgetc(f); // Ignore the whitespace character after the header
 
-    /* Allocate the Image object, and read the image from the file */
-    struct Image *img = malloc(sizeof(struct Image));
+    img = calloc(1, sizeof(struct Image));
     if (img == NULL) {
-        fprintf(stderr, "Memory allocation failed for Image object.\n");
-        fclose(f);
-        return NULL;
+        ERROR("Memory allocation failed for img.");
+        goto err;
     }
 
     img->width = width;
@@ -80,52 +78,58 @@ struct Image *load_image(const char *filename)
     img->nvalues = nvalues;
     
     size_t num_pixels = (size_t)width * height;
-    img->pixels = malloc(num_pixels * sizeof(struct Pixel));
+    img->pixel_ptr = calloc(num_pixels, sizeof(struct Pixel));
     
-    if (img->pixels == NULL) {
-        fprintf(stderr, "Memory allocation failed for pixels in %s.\n", filename);
-        free(img);
-        fclose(f);
-        return NULL;
+    if (img->pixel_ptr == NULL) {
+        ERROR("Memory allocation failed for pixels.");
+        goto err;
     }
 
-    /* Read binary pixel data */
-    size_t pixels_read = fread(img->pixels, sizeof(struct Pixel), num_pixels, f);
+    // Read binary pixel data
+    size_t pixels_read = fread(img->pixel_ptr, sizeof(struct Pixel), num_pixels, f);
     if (pixels_read != num_pixels) {
-        fprintf(stderr, "Error reading pixel data from %s.\n", filename);
-        free_image(img);
-        fclose(f);
-        return NULL;
+        ERROR("Reading pixel data failed.");
+        goto err;
     }
 
     fclose(f);
     return img;
+
+err:
+    if (f != NULL)   fclose(f);
+    if (img != NULL) free_image(img);
+    return NULL;
 }
 
 /* Q3c: Write img to file filename. Return true on success, false on error. */
-bool save_image(const struct Image *img, const char *filename)
-{
-    if (img == NULL || img->pixels == NULL)
+bool save_image(const struct Image *img, const char *filename) {
+    if (img == NULL || img->pixel_ptr == NULL)
         return false;
     
-    /* Open the file for writing in binary mode */
     FILE *f = fopen(filename, "wb");
     if (f == NULL) {
-        fprintf(stderr, "File %s could not be opened for writing.\n", filename);
+        ERROR("File write failed.");
         return false;
     }
 
-    /* Write ASCII header */
-    fprintf(f, "HQ8\n%d %d %d\n", img->width, img->height, img->nvalues);
+    if (fprintf(f, "HQ8\n%d %d %d\n", img->width, img->height, img->nvalues) < 0) { // Write ASCII header
+        ERROR("Writing ASCII header failed.");
+        fclose(f);
+        return false;
+    }
 
-    /* Write binary pixel data */
+
     size_t num_pixels = (size_t)img->width * img->height;
-    size_t pixels_written = fwrite(img->pixels, sizeof(struct Pixel), num_pixels, f);
-    
-    fclose(f);
+    size_t pixels_written = fwrite(img->pixel_ptr, sizeof(struct Pixel), num_pixels, f); // Write binary pixel data
 
     if (pixels_written != num_pixels) {
-        fprintf(stderr, "Error writing pixel data to %s.\n", filename);
+        ERROR("Writing pixel data failed.");
+        fclose(f);
+        return false;
+    }
+
+    if (fclose(f) != 0) {
+        ERROR("Closing file failed.");
         return false;
     }
 
@@ -135,10 +139,11 @@ bool save_image(const struct Image *img, const char *filename)
 /* Q3d: Allocate a new struct Image and copy an existing struct Image's contents into it. */
 struct Image *copy_image(const struct Image *source)
 {
-    if (source == NULL || source->pixels == NULL) 
+    if (source == NULL || source->pixel_ptr == NULL) 
         return NULL;
 
-    struct Image *img = malloc(sizeof(struct Image));
+    struct Image *img = calloc(1, sizeof(struct Image));
+
     if (img == NULL) return NULL;
 
     img->width = source->width;
@@ -146,19 +151,18 @@ struct Image *copy_image(const struct Image *source)
     img->nvalues = source->nvalues;
 
     size_t num_pixels = (size_t)img->width * img->height;
-    img->pixels = malloc(num_pixels * sizeof(struct Pixel));
+    img->pixel_ptr = malloc(num_pixels * sizeof(struct Pixel));
     
-    if (img->pixels == NULL) {
+    if (img->pixel_ptr == NULL) {
         free(img);
         return NULL;
     }
 
     // for (size_t i = 0; i < num_pixels; i++) {
-    //     img->pixels[i] = source->pixels[i];
+    //     img->pixel_ptr[i] = source->pixel_ptr[i];
     // }
 
-    /* Much more efficient than copying pixel by pixel in a loop */
-    memcpy(img->pixels, source->pixels, num_pixels * sizeof(struct Pixel));
+    memcpy(img->pixel_ptr, source->pixel_ptr, num_pixels * sizeof(struct Pixel)); // More efficient way
 
     return img;
 }
@@ -177,16 +181,15 @@ struct Image *apply_BRIGHT(const struct Image *source, float factor)
 
     size_t num_pixels = (size_t)out_img->width * out_img->height;
 
-    /* Process sequentially to maximize cache efficiency */
     for (size_t i = 0; i < num_pixels; i++) {
-        float r = out_img->pixels[i].red * factor;
-        float g = out_img->pixels[i].green * factor;
-        float b = out_img->pixels[i].blue * factor;
+        float r = out_img->pixel_ptr[i].red * factor;
+        float g = out_img->pixel_ptr[i].green * factor;
+        float b = out_img->pixel_ptr[i].blue * factor;
 
         /* Constrain the values to remain within the range 0-255 */
-        out_img->pixels[i].red   = (r > 255.0f) ? 255 : ((r < 0.0f) ? 0 : (uint8_t)r);
-        out_img->pixels[i].green = (g > 255.0f) ? 255 : ((g < 0.0f) ? 0 : (uint8_t)g);
-        out_img->pixels[i].blue  = (b > 255.0f) ? 255 : ((b < 0.0f) ? 0 : (uint8_t)b);
+        out_img->pixel_ptr[i].red   = VAL_CONSTRAIN(r);
+        out_img->pixel_ptr[i].green = VAL_CONSTRAIN(g);
+        out_img->pixel_ptr[i].blue  = VAL_CONSTRAIN(b);
     }
 
     return out_img;
@@ -197,33 +200,31 @@ struct Image *apply_BRIGHT(const struct Image *source, float factor)
  * Returns true on success, or false on error. */
 bool apply_EDGE(const struct Image *source)
 {
-    if (source == NULL || source->pixels == NULL) 
+    if (source == NULL || source->pixel_ptr == NULL) 
         return false;
 
-    int overall_min = 255 * 3 + 1; /* Max possible difference is 255 per channel */
+    int overall_min = INT_MAX;
     int overall_max = -1;
 
     for (int y = 0; y < source->height; y++) {
-        int row_min = 255 * 3 + 1;
+        int row_min = INT_MAX;
         int row_max = -1;
 
         for (int x = 0; x < source->width - 1; x++) {
-            /* Compute 1D index from 2D coordinates */
-            struct Pixel p1 = source->pixels[y * source->width + x];
-            struct Pixel p2 = source->pixels[y * source->width + x + 1];
+            // Transfer 2D into 1D
+            struct Pixel p1 = source->pixel_ptr[y * source->width + x];
+            struct Pixel p2 = source->pixel_ptr[y * source->width + x + 1];
 
-            /* Sum of abs differences for the RGB values */
             int diff_r = abs((int)p1.red - (int)p2.red);
             int diff_g = abs((int)p1.green - (int)p2.green);
             int diff_b = abs((int)p1.blue - (int)p2.blue);
-            int total_diff = diff_r + diff_g + diff_b;
+            int total_diff = MAX(MAX(diff_r, diff_g), diff_b);
 
             if (total_diff < row_min) row_min = total_diff;
             if (total_diff > row_max) row_max = total_diff;
         }
 
-        /* Handle edge case where width is 1 - no adjacent pixels to compare */
-        if (source->width <= 1) {
+        if (source->width <= 1) { // When no adjacent pixels to compare
             row_min = 0;
             row_max = 0;
         }
@@ -249,69 +250,64 @@ bool apply_EDGE(const struct Image *source)
 /* Q6: Processing multiple input files */
 int main(int argc, char *argv[])
 {
-    /* Check command-line arguments */
     if (argc < 4 || argc % 2 != 0) {
-        fprintf(stderr, "Usage: %s INPUT1 OUTPUT1 [INPUT2 OUTPUT2 ...] BRIGHTNESS_FACTOR\n", argv[0]);
-        return 1;
+        ERRORF("Usage: %s INPUT1 OUTPUT1 [INPUT2 OUTPUT2 ...] BRIGHTNESS_FACTOR", argv[0]);
+        return EXIT_FAILURE;
     }
 
-    /* Set the last argument as the brightness factor */
-    float brightness_factor = (float)atof(argv[argc - 1]);
+    float brightness_factor;
+    const char *arg = argv[argc - 1];
+    if (sscanf(arg, "%f", &brightness_factor) < 0)
+        ERRORF("an float is expected, but got %s", arg); // Set the last argument as the brightness factors
     int num_pairs = (argc - 2) / 2;
 
-    /* Allocate array to keep track of all loaded input images */
-    struct Image **input_images = malloc(num_pairs * sizeof(struct Image *));
+    int state = EXIT_SUCCESS;
+
+    struct Image **input_images = calloc(num_pairs, sizeof(struct Image *));
     if (input_images == NULL) {
-        fprintf(stderr, "Memory allocation failed for image array.\n");
-        return 1;
+        ERROR("Memory allocation failed for image array.");
+        return EXIT_FAILURE;
     }
 
-    /* Step 1 - Load ALL images into memory */
-    bool load_success = true;
     for (int i = 0; i < num_pairs; i++) {
-        input_images[i] = load_image(argv[i * 2 + 1]);
+        input_images[i] = load_image(argv[i * 2 + 1]); // Load all images into memory
         if (input_images[i] == NULL) {
-            load_success = false;
-            break; 
+            ERRORF("Failed to load image %d. Exiting.", i + 1);
+            state = EXIT_FAILURE;
+            goto err;
         }
     }
 
-    /* If any image failed to load, free what was loaded and abort */
-    if (!load_success) {
-        for (int i = 0; i < num_pairs; i++) {
-            free_image(input_images[i]); /* to handle NULL safely */
-        }
-        free(input_images);
-        return 1;
-    }
-
-    /* Step 2 - Process and save all images */
     for (int i = 0; i < num_pairs; i++) {
         /* Apply BRIGHT */
         struct Image *processed_img = apply_BRIGHT(input_images[i], brightness_factor);
         if (processed_img == NULL) {
-            fprintf(stderr, "Processing BRIGHT failed for image %d.\n", i + 1);
-            continue; /* Skip to next if processing fails */
+            ERROR("Processing BRIGHT failed.");
+            state = EXIT_FAILURE;
+            goto err;
         }
 
         /* Apply EDGE */
-        printf("EDGE report for: %s\n", argv[i * 2 + 1]); /* Prints to stdout */
+        printf("EDGE report for: %s\n", argv[i * 2 + 1]); // Prints to stdout
         apply_EDGE(processed_img);
 
-        /* Save Image */
         if (!save_image(processed_img, argv[i * 2 + 2])) {
-            fprintf(stderr, "Saving image to %s failed.\n", argv[i * 2 + 2]);
+            ERRORF("Saving image to %s failed.", argv[i * 2 + 2]);
+            free_image(processed_img);
+            state = EXIT_FAILURE;
+            goto err;
         }
 
-        /* Free the processed image */
         free_image(processed_img);
     }
 
-    /* Step 3 - Cleanup original input images */
-    for (int i = 0; i < num_pairs; i++) {
-        free_image(input_images[i]);
+err:
+    if (input_images != NULL) {
+        for (int i = 0; i < num_pairs; i++) {
+            free_image(input_images[i]);
+        }
+        free(input_images);
     }
-    free(input_images);
 
-    return 0;
+    return state;
 }
