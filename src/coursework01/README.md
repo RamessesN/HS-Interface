@@ -41,7 +41,7 @@ The program takes an arbitrary number of input/output image file pairs, followed
 _Example (Increase brightness by 30%):_
 
 ```bash
-./process kitten.image kitten-processed.image 1.3
+./process kitten.hq8 kitten-processed.hq8 1.3
 ```
 
 ### 2. Multiple Image Processing (Batch)
@@ -54,5 +54,5 @@ Load and process multiple images in memory by providing pairs of input and outpu
 _Example (Decrease brightness by 30% for two images):_
 
 ```bash
-./process cat1.image out1.image cat2.image out2.image 0.7
+./process in1.hq8 out1.hq8 in2.hq8 out2.hq8 0.7
 ```

@@ -13,8 +13,10 @@
 
 #define MAX(a, b)          ((a) > (b) ? (a) : (b))
 #define VAL_CONSTRAIN(val) ((val) > 255.0f ? 255 : ((val) < 0.0f ? 0 : (uint8_t)(val)))
+#define LOG(s)             printf("%s\n", (s))
+#define LOGF(fmt, ...)     printf(fmt "\n", __VA_ARGS__)
 #define ERROR(s)           fprintf(stderr, "%s\n", (s))
-#define ERRORF(s, ...)     fprintf(stderr, s "\n", __VA_ARGS__)
+#define ERRORF(fmt, ...)   fprintf(stderr, fmt "\n", __VA_ARGS__)
 #define Image_Init()       calloc(1, sizeof(Image))
 
 /* The RGB values of a pixel. */
@@ -43,7 +45,7 @@ void free_image(Image *img) {
 /* Q3b: Opens and reads an image file, returning a pointer to a new Image.
  * On error, prints an error message and returns NULL. */
 Image *load_image(const char *filename) {
-    /* Open the file for reading in binary mode */
+    // Open the file for reading in binary mode
     FILE *f = fopen(filename, "rb");
     if (f == NULL) {
         ERROR("File openned failed.");
@@ -119,7 +121,6 @@ bool save_image(const Image *img, const char *filename) {
         return false;
     }
 
-
     size_t num_pixels = (size_t)img->width * img->height;
     size_t pixels_written = fwrite(img->pixel_ptr, sizeof(Pixel), num_pixels, f); // Write binary pixel data
 
@@ -144,7 +145,6 @@ Image *copy_image(const Image *source)
         return NULL;
 
     Image *img = Image_Init();
-
     if (img == NULL) return NULL;
 
     img->width = source->width;
@@ -163,8 +163,7 @@ Image *copy_image(const Image *source)
     //     img->pixel_ptr[i] = source->pixel_ptr[i];
     // }
 
-    memcpy(img->pixel_ptr, source->pixel_ptr, num_pixels * sizeof(Pixel)); // More efficient way
-
+    memcpy(img->pixel_ptr, source->pixel_ptr, num_pixels * sizeof(Pixel)); // More efficient
     return img;
 }
 
@@ -177,8 +176,7 @@ Image *apply_BRIGHT(const Image *source, float factor)
         return NULL;
 
     Image *out_img = copy_image(source);
-    if (out_img == NULL) 
-        return NULL;
+    if (out_img == NULL) return NULL;
 
     size_t num_pixels = (size_t)out_img->width * out_img->height;
 
@@ -187,7 +185,7 @@ Image *apply_BRIGHT(const Image *source, float factor)
         float g = out_img->pixel_ptr[i].green * factor;
         float b = out_img->pixel_ptr[i].blue * factor;
 
-        /* Constrain the values to remain within the range 0-255 */
+        // Constrain the values to remain within the range 0-255
         out_img->pixel_ptr[i].red   = VAL_CONSTRAIN(r);
         out_img->pixel_ptr[i].green = VAL_CONSTRAIN(g);
         out_img->pixel_ptr[i].blue  = VAL_CONSTRAIN(b);
@@ -232,7 +230,7 @@ bool apply_EDGE(const Image *source)
             row_max = 0;
         }
 
-        printf("Row %d: minimum %d, maximum %d\n", y, row_min, row_max);
+        LOGF("Row %d: minimum %d, maximum %d", y, row_min, row_max);
 
         if (row_min < overall_min)      
             overall_min = row_min;
@@ -245,7 +243,7 @@ bool apply_EDGE(const Image *source)
         overall_max = 0;
     }
 
-    printf("Overall: minimum %d, maximum %d\n", overall_min, overall_max);
+    LOGF("Overall: minimum %d, maximum %d\n", overall_min, overall_max);
 
     return true;
 }
@@ -293,7 +291,7 @@ int main(int argc, char *argv[])
         }
 
         /* Apply EDGE */
-        printf("EDGE report for: %s\n", argv[i * 2 + 1]); // Prints to stdout
+        LOGF("EDGE report for: %s", argv[i * 2 + 1]);
         apply_EDGE(processed_img);
 
         if (!save_image(processed_img, argv[i * 2 + 2])) {
