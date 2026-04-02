@@ -41,7 +41,7 @@ The program takes an arbitrary number of input/output image file pairs, followed
 _Example (Increase brightness by 30%):_
 
 ```bash
-./process kitten.hq8 kitten-processed.hq8 1.3
+./process input.hq8 output.hq8 1.3
 ```
 
 ### 2. Multiple Image Processing (Batch)
