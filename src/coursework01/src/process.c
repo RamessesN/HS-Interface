@@ -152,7 +152,7 @@ Image *copy_image(const Image *source)
     img->nvalues = source->nvalues;
 
     size_t num_pixels = (size_t)img->width * img->height;
-    img->pixel_ptr = malloc(num_pixels * sizeof(Pixel));
+    img->pixel_ptr = calloc(num_pixels, sizeof(Pixel));
     
     if (img->pixel_ptr == NULL) {
         free(img);
