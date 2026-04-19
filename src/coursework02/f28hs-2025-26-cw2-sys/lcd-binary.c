@@ -17,21 +17,20 @@
  * @param mode  Pin mode (Input/Output).
  */
 void pin_mode(volatile uint32_t *gpio, int pin, int mode) {
-    volatile uint32_t *fsel_reg = gpio + (pin / 10);
+    int word_offset = pin / 10;
     int fsel_shift = (pin % 10) * 3;
-
     __asm__ volatile (
-        "MOV r2, %[reg] \n\t"       // load target register addr
-        "LDR r1, [r2] \n\t"         // read curr register val
-        "MOV r3, #7 \n\t"           // mask for 3 bits (0b111)
+        "MOV r2, %[base] \n\t"              // load the raw GPIO base addr to R2
+        "LDR r1, [r2, %[off], LSL #2] \n\t" // R2 + (word_offset * 4 bytes)
+        "MOV r3, #7 \n\t"                   // 0b111 mask for 3 bits
         "LSL r3, r3, %[shift] \n\t"
-        "BIC r1, r1, r3 \n\t"       // clear existing func bits
+        "BIC r1, r1, r3 \n\t"               // clear existing func bits
         "MOV r3, %[mode] \n\t"
         "LSL r3, r3, %[shift] \n\t"
-        "ORR r1, r1, r3 \n\t"       // set new mode
-        "STR r1, [r2] \n\t"         // write back to reg
+        "ORR r1, r1, r3 \n\t"               // set new mode
+        "STR r1, [r2, %[off], LSL #2] \n\t" // write back to reg
         :
-        : [reg] "r" (fsel_reg), [shift] "r" (fsel_shift), [mode] "r" (mode)
+        : [base] "r" (gpio), [off] "r" (word_offset), [shift] "r" (fsel_shift), [mode] "r" (mode)
         : "r1", "r2", "r3", "memory"
     );
 }
@@ -47,17 +46,16 @@ void pin_mode(volatile uint32_t *gpio, int pin, int mode) {
  */
 void digital_write (volatile uint32_t *gpio, int pin, int value) {
     int reg_offset = (value == HIGH) ? GPIO_GPSET0 : GPIO_GPCLR0;
-
-    volatile uint32_t *setclr_reg = gpio + reg_offset + (pin / 32);
+    int word_offset = reg_offset + (pin / 32);
     int bit_shift = pin % 32;
 
     __asm__ volatile (
-        "MOV r2, %[reg] \n\t"       // load target register addr
+        "MOV r2, %[base] \n\t"              // load the raw GPIO base addr to R2
         "MOV r1, #1 \n\t"
-        "LSL r1, r1, %[shift] \n\t" // create bit mask
-        "STR r1, [r2] \n\t"         // write to GPSET/GPCLR
+        "LSL r1, r1, %[shift] \n\t"         // create bit mask
+        "STR r1, [r2, %[off], LSL #2] \n\t" // write to GPSET/GPCLR
         :
-        : [reg] "r" (setclr_reg), [shift] "r" (bit_shift)
+        : [base] "r" (gpio), [off] "r" (word_offset), [shift] "r" (bit_shift)
         : "r1", "r2", "memory"
     );
 }
@@ -73,17 +71,17 @@ void digital_write (volatile uint32_t *gpio, int pin, int value) {
  * @return int    Returns HIGH-1 if the pin is set, LOW-0 otherwise.
  */
 int read_button(volatile uint32_t *gpio, int button) {
-    volatile uint32_t *lev_reg = gpio + GPIO_GPLEV0 + (button / 32);
+    int word_offset = GPIO_GPLEV0 + (button / 32);
     int bit_shift = button % 32;
     int pin_state;
 
     __asm__ volatile (
-        "MOV r2, %[reg] \n\t"       // load target register addr
-        "LDR r1, [r2] \n\t"         // read curr register val
-        "LSR r1, r1, %[shift] \n\t" // shift target bit to LSB
-        "AND %[res], r1, #1 \n\t"   // mask least significant bit
+        "MOV r2, %[base] \n\t"              // load the raw GPIO base addr to R2
+        "LDR r1, [r2, %[off], LSL #2] \n\t" // read curr register val
+        "LSR r1, r1, %[shift] \n\t"         // shift target bit to LSB
+        "AND %[res], r1, #1 \n\t"           // mask least significant bit
         : [res] "=r" (pin_state)
-        : [reg] "r" (lev_reg), [shift] "r" (bit_shift)
+        : [base] "r" (gpio), [off] "r" (word_offset), [shift] "r" (bit_shift)
         : "r1", "r2", "memory"
     );
     

@@ -7,10 +7,10 @@
 
 ## 📂 Labs Overview
 | Task | Link |
-| :---: | :--- |
+| :---: | :---: |
 | Traffic Lights Lab | [lab05](./src/lab05) |
 | Coursework1 | [CW1](./src/coursework01) |
-| Coursework2 | TODO |
+| Coursework2 | [CW2](./src/coursework02) |
 
 ---
 

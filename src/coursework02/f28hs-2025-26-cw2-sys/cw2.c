@@ -83,12 +83,12 @@
 /* Constants */
 static int  digits = DIGITS;     // number of possible values per digit
 static int  seqlen = SEQL;       // length of the pin sequence
-static int* theSeq = NULL;       // secret pin sequence
+static int* secret_seq = NULL;   // secret pin sequence
 
 volatile unsigned int gpiobase;  // base address of GPIO memory
 volatile uint32_t *gpio ;        // pointer to mapped GPIO memory
 
-static int timeout_flag = 0;     // flag set by timer interrupt when timeout occurs
+static volatile sig_atomic_t timeout_flag = 0;     // flag set by timer interrupt when timeout occurs
 
 #ifdef HAMM_ASM
 // prototype for the Assembler fct; only needed for an Asm implementation
@@ -102,7 +102,7 @@ int hamming(const int *x, const int *y, int seqlen);
  */
 uint64_t timeInMicroseconds(void) {
     struct timeval tv;
-    gettimeofday (&tv, NULL);
+    gettimeofday(&tv, NULL);
     return (uint64_t)tv.tv_sec * USEC_PER_SEC + (uint64_t)tv.tv_usec;
 }
 
@@ -148,9 +148,9 @@ void initITimer(uint64_t timeout) {
 void initSeq(int seqlen, int digits) {
     unsigned long value, r;
 
-    if (theSeq == NULL) {
-        theSeq = calloc(seqlen, sizeof(int));
-        if (theSeq == NULL) {
+    if (secret_seq == NULL) {
+        secret_seq = calloc(seqlen, sizeof(int));
+        if (secret_seq == NULL) {
             failure(true, "calloc failed");
         }
     }
@@ -159,7 +159,7 @@ void initSeq(int seqlen, int digits) {
     for (int i = 0; i < seqlen; i++) {
         r = rand();
         value = (r % digits) + 1;
-        theSeq[i] = value;
+        secret_seq[i] = value;
     }
 }
 
@@ -306,11 +306,11 @@ int submit_pin(const int *attSeq, int seqlen, int submitDelay) {
 
     // debugging only (needs additional arguments!):
     // showSeq(attSeq,seqlen);   
-    // showHamm(code, refSeq, attSeq);
+    // showHamm(code, ref_seq, attSeq);
 
     // submits++;         // now done at caller side
     usleep(submitDelay);  // simulating a slow submit action
-    found = hamming(theSeq, attSeq, seqlen) == 0;
+    found = hamming(secret_seq, attSeq, seqlen) == 0;
     return found;
 }
 
@@ -327,24 +327,25 @@ int main(int argc, char **argv){
 
     // use these to count: number of comparisons in total, found after how many attempts, total number of submits
     int attempts = 0, found_at = 0, submits = 0;
-    int *attempt_seq = NULL, *refSeq = NULL; 
-    double startTime, stopTime;
+    int *attempt_seq = NULL, *ref_seq = NULL; 
+    double start_time, stop_time;
 
     
     int pin_led_green = LED, pin_led_red = LED2, pin_button = BUTTON; // variables holding pin numbers for LEDs and button
-    int fd; // int fSel, shift, pin,  clrOff, setOff, off, res;
+    int fd; // int fSel, shift, pin, clrOff, setOff, off, res;
 
     // strings for temporary usage (e.g. writing to LCD display)
     // char str1[32];
     // char str2[32];
 
-    // useful for interval timers					    
-    // struct timeval t1, t2 ;
+    // useful for interval timers
+    // struct timeval t1, t2;
 
     // variables for command-line processing
     // command-line options
     bool opt_e = false, opt_l = false;
     int opt_m = 0, opt_n = 0, opt_S = 0, opt_s = 0, opt_r = 0;
+
     // variables derived from command line options
     bool verbose = false, help = false, debug = false, unit_test = false;
     int submitDelay = SUBMIT_DELAY;
@@ -354,45 +355,18 @@ int main(int argc, char **argv){
         int opt;
         while ((opt = getopt(argc, argv, "hvdeluS:s:r:m:n:")) != -1) {
             switch (opt) {
-            case 'v':
-        verbose = true;
-        break;
-            case 'h':
-        help = true;
-        break;
-            case 'd':
-        debug = true;
-        break;
-            case 'e':
-        opt_e = true;
-        break;
-            case 'l': // LCD test only
-        opt_l = true;
-        break;
-            case 'u':
-        unit_test = true;
-        break;
-            case 'S':
-        opt_S = atoi(optarg);
-        submitDelay = opt_S;
-        break;
-            case 's':
-        opt_s = atoi(optarg); 
-        break;
-            case 'r':
-        opt_r = atoi(optarg); 
-        break;
-            case 'm':
-        opt_m = atoi(optarg);
-        digits = opt_m;
-        break;
-            case 'n':
-        opt_n = atoi(optarg);
-        seqlen = opt_n;
-        break;
-            default: /* '?' */
-        fprintf(stderr, "Usage: %s [-h] [-v] [-d] [-e] [-m <maxval> ] [-n <seqlen>] [-u <seq1> <seq2>] [-s <secret seq>] [-r <reference seq>]  \n", argv[0]);
-        exit(EXIT_FAILURE);
+                case 'v': verbose = true;       break;
+                case 'h': help = true;          break;
+                case 'd': debug = true;         break;
+                case 'e': opt_e = true;         break;
+                case 'l': opt_l = true;         break; // LCD test only
+                case 'u': unit_test = true;     break;
+                case 'S': opt_S = atoi(optarg); submitDelay = opt_S; break;
+                case 's': opt_s = atoi(optarg); break;
+                case 'r': opt_r = atoi(optarg); break;
+                case 'm': opt_m = atoi(optarg); digits = opt_m; break;
+                case 'n': opt_n = atoi(optarg); seqlen = opt_n; break;
+                default: fprintf(stderr, "Usage: %s [-h] [-v] [-d] [-e] [-m <maxval> ] [-n <seqlen>] [-u <seq1> <seq2>] [-s <secret seq>] [-r <reference seq>]  \n", argv[0]); exit(EXIT_FAILURE);
             }
         }
     }
@@ -422,30 +396,30 @@ int main(int argc, char **argv){
     }
 
     if (opt_s) { // if `-s` option is given, use the sequence as SECRET sequence
-        if (theSeq == NULL) {
-            theSeq = calloc(seqlen, sizeof(int));
-            if (theSeq == NULL) {
+        if (secret_seq == NULL) {
+            secret_seq = calloc(seqlen, sizeof(int));
+            if (secret_seq == NULL) {
                 failure(true, "calloc failed");
             }
         }
-        readSeq(theSeq, seqlen, opt_s);
+        readSeq(secret_seq, seqlen, opt_s);
         if (verbose) {
             fprintf(stderr, "Running program with secret sequence:\n");
-            showSeq(theSeq,seqlen);
+            showSeq(secret_seq,seqlen);
         }
     }
 
     if (opt_r) { // if `-r` option is given, use the sequence as REFERENCE sequence
-        if (refSeq == NULL) {
-            refSeq = calloc(seqlen, sizeof(int));
-            if (refSeq == NULL) {
+        if (ref_seq == NULL) {
+            ref_seq = calloc(seqlen, sizeof(int));
+            if (ref_seq == NULL) {
                 failure(true, "calloc failed");
             }
         }
-        readSeq(refSeq, seqlen, opt_r);
+        readSeq(ref_seq, seqlen, opt_r);
         if (verbose) {
             ERROR("Running program with secret sequence:\n");
-            showSeq(refSeq,seqlen);
+            showSeq(ref_seq,seqlen);
         }
     }
 
@@ -453,9 +427,9 @@ int main(int argc, char **argv){
     int bits, rows, cols ;
 
     // hard-coded: 16x2 display, using a 4-bit connection
-    bits = 4; 
-    cols = 16; 
-    rows = 2; 
+    bits = 4;
+    cols = 16;
+    rows = 2;
 
     LOGF("Raspberry Pi configuration: red LED: %d; green LED: %d; button: %d\n", pin_led_red, pin_led_green, pin_button);
     LOGF("Raspberry Pi LCD driver for a %dx%d display (%d-bit wiring) \n", cols, rows, bits);
@@ -468,9 +442,9 @@ int main(int argc, char **argv){
 
     /* constants for RPi2/3. NOTE: RPi4 needs a different base address */
     // RPi2/3
-    // gpiobase = 0x3F200000 ;
+    // gpiobase = 0x3F200000;
     // RPi4
-    gpiobase = 0xFE200000 ;
+    gpiobase = 0xFE200000;
 
     // memory mapping 
     // Open the master /dev/memory device
@@ -488,13 +462,13 @@ int main(int argc, char **argv){
     pin_mode(gpio, pin_button, INPUT);
 
     pin_mode(gpio, LCD_PIN_RS, OUTPUT);
-    pin_mode(gpio, LCD_PIN_E, OUTPUT);
+    pin_mode(gpio, LCD_PIN_E,  OUTPUT);
     pin_mode(gpio, LCD_PIN_D4, OUTPUT);
     pin_mode(gpio, LCD_PIN_D5, OUTPUT);
     pin_mode(gpio, LCD_PIN_D6, OUTPUT);
     pin_mode(gpio, LCD_PIN_D7, OUTPUT);
 
-    // Initialise the LCD display
+    // Initialize the LCD display
     lcd_init(gpio);
     lcd_clear(gpio);
 
@@ -507,12 +481,12 @@ int main(int argc, char **argv){
         exit(2);
     }
 
-    if (!opt_s) initSeq(seqlen, digits); // Initialise the secret sequence
+    if (!opt_s) initSeq(seqlen, digits); // Initialize the secret sequence
 
     // Use the debugging option like this for extra messages
     if (debug) {
         LOG("Secret sequence is: ");
-        showSeq(theSeq,seqlen);
+        showSeq(secret_seq,seqlen);
     }
 
     // Unit testing: check the Hamming distance between two given sequences
@@ -523,10 +497,10 @@ int main(int argc, char **argv){
         }
 
         // output to screen
-        refCode = hamming(theSeq, refSeq, seqlen);
-        showSeq(theSeq,seqlen);
-        showSeq(refSeq,seqlen);
-        showHamm(refCode, theSeq, refSeq); 
+        refCode = hamming(secret_seq, ref_seq, seqlen);
+        showSeq(secret_seq,seqlen);
+        showSeq(ref_seq,seqlen);
+        showHamm(refCode, secret_seq, ref_seq); 
         exit(EXIT_SUCCESS);
     }  
 
@@ -538,8 +512,8 @@ int main(int argc, char **argv){
     int limit = (len < 5) ? len : 5;
     strncpy(display_name, surname, limit);
 
-    lcd_write_row(gpio, 0, "Greeting:");
-    lcd_write_row(gpio, 1, display_name);
+    lcd_write_row(gpio, 1, "Greeting:");
+    lcd_write_row(gpio, 0, display_name);
 
     for (int i = 0; i < limit; i++) {
         if (isalpha(display_name[i])) {
@@ -551,7 +525,7 @@ int main(int argc, char **argv){
         }
     }
 
-    waitForEnter(); // wait for ENTER key before continuing
+    waitForEnter(); // wait for `ENTER` key before continuing
 
     attempt_seq = (int *) calloc(seqlen, sizeof(int));
     if (attempt_seq == NULL) {
@@ -612,18 +586,18 @@ int main(int argc, char **argv){
 
     if (debug) {
         LOG("Debug mode\nThe secret sequence is:");
-        showSeq(theSeq,seqlen);
+        showSeq(secret_seq,seqlen);
     }
 
     // calculate the total range of possible sequences
     unsigned long bound = powl(digits, seqlen);
 
     // time-stamp
-    startTime = clock();
+    start_time = clock();
 
-    int *input_seq = opt_r ? refSeq : attempt_seq;
+    int *input_seq = opt_r ? ref_seq : attempt_seq;
 
-    code = hamming(theSeq, input_seq, seqlen);
+    code = hamming(secret_seq, input_seq, seqlen);
 
     int *guess_seq = (int *) calloc(seqlen, sizeof(int));
     for (int i = 0; i < seqlen; i++) {
@@ -646,13 +620,13 @@ int main(int argc, char **argv){
         incseq(guess_seq, seqlen, digits);
     }
 
-    stopTime = clock();
+    stop_time = clock();
 
-    LOGF("Runtime; %f secs\n", (stopTime-startTime) / CLOCKS_PER_SEC);
+    LOGF("Runtime; %f secs\n", (stop_time - start_time) / CLOCKS_PER_SEC);
     LOGF("Sequence %s\n", found ? "found" : "not found");
     LOGF("%s search finished for %d digits and %d seqlen (expect %ld):\n%d attempts (found at %d i.e. %.2f %%), %d submits\n", (opt_e ? "Exhaustive" : "Non-exhaustive"), digits, seqlen, bound, attempts, found_at, (float)found_at / ((float)bound / 100.0), submits);
     LOG("Secret sequence was: ");
-    showSeq(theSeq,seqlen);
+    showSeq(secret_seq, seqlen);
 
     lcd_clear(gpio);
     usleep(LCD_INIT_DELAY);
@@ -666,8 +640,9 @@ int main(int argc, char **argv){
         lcd_write_row(gpio, 0, "Pin not found");
     }
 
-    free(theSeq);
-    free(refSeq);
+    /* free memory */
+    free(secret_seq);
+    free(ref_seq);
     free(attempt_seq);
     free(guess_seq);
 
