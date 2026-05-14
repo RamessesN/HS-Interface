@@ -83,7 +83,7 @@
 /* Constants */
 static int  digits = DIGITS;     // number of possible values per digit
 static int  seqlen = SEQL;       // length of the pin sequence
-static int* secret_seq = NULL;   // secret pin sequence
+static int* theSeq = NULL;   // secret pin sequence
 
 volatile unsigned int gpiobase;  // base address of GPIO memory
 volatile uint32_t *gpio ;        // pointer to mapped GPIO memory
@@ -168,7 +168,7 @@ void initITimer(uint64_t timeout) {
 bool initSeq(int seqlen, int digits) {
     unsigned long value, r;
 
-    if (secret_seq == NULL) {
+    if (theSeq == NULL) {
         return false;
     }
 
@@ -177,7 +177,7 @@ bool initSeq(int seqlen, int digits) {
     for (int i = 0; i < seqlen; i++) {
         r = rand();
         value = (r % digits) + 1;
-        secret_seq[i] = value;
+        theSeq[i] = value;
     }
 
     return true;
@@ -335,7 +335,7 @@ static inline void incseq(int *seq, int seqlen,  int digits) {
  */
 int submit_pin(const int *attSeq, int seqlen, int submitDelay) {
     usleep(submitDelay); // simulating a slow submit action
-    return hamming(secret_seq, attSeq, seqlen);
+    return hamming(theSeq, attSeq, seqlen);
 }
 
 /**
@@ -605,16 +605,16 @@ int main(int argc, char **argv){
     }
 
     if (opt_s) { // if `-s` option is given, use the sequence as SECRET sequence
-        secret_seq = calloc(seqlen, sizeof(int));
+        theSeq = calloc(seqlen, sizeof(int));
 
-        if (secret_seq == NULL) {
+        if (theSeq == NULL) {
             ERROR("calloc failed\n");
 
             ret = EXIT_FAILURE;
             goto cleanup;
         }
 
-        if (!readSeq(secret_seq, seqlen, opt_s)) {
+        if (!readSeq(theSeq, seqlen, opt_s)) {
             ret = EXIT_FAILURE;
             goto cleanup;
         }
@@ -710,9 +710,9 @@ int main(int argc, char **argv){
     }
 
     if (!opt_s) {
-        secret_seq = calloc(seqlen, sizeof(int));
+        theSeq = calloc(seqlen, sizeof(int));
 
-        if (secret_seq == NULL) {
+        if (theSeq == NULL) {
             ERROR("calloc failed\n");
             
             ret = EXIT_FAILURE;
@@ -730,7 +730,7 @@ int main(int argc, char **argv){
     // Use the debugging option like this for extra messages
     if (debug) {
         LOG("Secret sequence is: ");
-        showSeq(secret_seq,seqlen);
+        showSeq(theSeq,seqlen);
     }
 
     // Unit testing: check the Hamming distance between two given sequences
@@ -743,10 +743,10 @@ int main(int argc, char **argv){
         }
 
         // output to terminal
-        refCode = hamming(secret_seq, ref_seq, seqlen);
-        showSeq(secret_seq,seqlen);
+        refCode = hamming(theSeq, ref_seq, seqlen);
+        showSeq(theSeq,seqlen);
         showSeq(ref_seq,seqlen);
-        showHamm(refCode, secret_seq, ref_seq); 
+        showHamm(refCode, theSeq, ref_seq); 
 
         // output to LCD display
         lcd_clear(gpio);
@@ -883,7 +883,7 @@ int main(int argc, char **argv){
 
     if (debug) {
         LOG("Debug mode\nThe secret sequence is:");
-        showSeq(secret_seq,seqlen);
+        showSeq(theSeq,seqlen);
     }
 
     start_time = timeInMicroseconds();
@@ -1031,7 +1031,7 @@ int main(int argc, char **argv){
         percentage, 
         stats.submits);
     LOG("Secret sequence was: ");
-    showSeq(secret_seq, seqlen);
+    showSeq(theSeq, seqlen);
 
     lcd_clear(gpio);
     usleep(LCD_INIT_DELAY);
@@ -1054,7 +1054,7 @@ int main(int argc, char **argv){
 
 cleanup:
     /* free memory */
-    free(secret_seq);
+    free(theSeq);
     free(ref_seq);
     free(attemptSeq);
     free(stats.found_seq);
