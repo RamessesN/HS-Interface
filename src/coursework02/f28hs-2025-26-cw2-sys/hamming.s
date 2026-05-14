@@ -20,7 +20,7 @@
 .global hamming
 	
 hamming:
-	PUSH {R4, R5}
+	PUSH {R4, R5, LR}
     MOV R3, #0
 
 loop_start:
@@ -44,10 +44,7 @@ loop_start:
 
 loop_end:
     MOV R0, R3
-    POP {R4, R5}
-
-    @ Return to caller
-	BX   LR
+    POP {R4, R5, PC}
 
 @ Test data	
 .data

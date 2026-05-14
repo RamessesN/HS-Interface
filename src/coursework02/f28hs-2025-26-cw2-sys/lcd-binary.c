@@ -68,7 +68,7 @@ void digital_write (volatile uint32_t *gpio, int pin, int value) {
  * @param gpio    Pointer to the base address of the GPIO register map.
  * @param button  GPIO pin number connected to the button.
  *
- * @return int    Returns HIGH-1 if the pin is set, LOW-0 otherwise.
+ * @return int    Returns HIGH if the pin is set, LOW otherwise.
  */
 int read_button(volatile uint32_t *gpio, int button) {
     int word_offset = GPIO_GPLEV0 + (button / 32);
