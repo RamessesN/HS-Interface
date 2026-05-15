@@ -697,8 +697,8 @@ int main(int argc, char **argv){
     usleep(LCD_INIT_DELAY);
 
     if (opt_l) {
-        lcd_write_row(gpio, 0, "Hello, World");
-        lcd_write_row(gpio, 1, "Good bye, World");
+        lcd_write_row(gpio, 1, "Hello, World");
+        lcd_write_row(gpio, 0, "Good bye, World");
 
         ret = 2;
         goto cleanup;
@@ -746,18 +746,18 @@ int main(int argc, char **argv){
         // output to LCD display
         lcd_clear(gpio);
         usleep(LCD_INIT_DELAY);
-        lcd_write_row(gpio, 0, "Hamming dist:");
+        lcd_write_row(gpio, 1, "Hamming dist:");
 
         char dist_str[16];
         snprintf(dist_str, sizeof(dist_str), "%d", refCode);
-        lcd_write_row(gpio, 1, dist_str);
+        lcd_write_row(gpio, 0, dist_str);
 
         ret = EXIT_SUCCESS;
         goto cleanup;
     }  
 
     /* Print Greetings Message on LCD display */
-    const char *surname = "ZHAO";
+    const char *surname = "ZHAOY";
     char display_name[6] = {0};
 
     int len = strlen(surname);
@@ -800,7 +800,7 @@ int main(int argc, char **argv){
     if (!opt_r) {
         lcd_clear(gpio);
         usleep(LCD_INIT_DELAY);
-        lcd_write_row(gpio, 0, "Enter PIN:");
+        lcd_write_row(gpio, 1, "Enter PIN:");
 
         char input_display[17] = {0}; // demonstrate the input sequence
 
@@ -865,7 +865,7 @@ int main(int argc, char **argv){
             char temp_char[16];
             snprintf(temp_char, sizeof(temp_char), "%d", press_count);
             strncat(input_display, temp_char, sizeof(input_display) - strlen(input_display) - 1);
-            lcd_write_row(gpio, 1, input_display);
+            lcd_write_row(gpio, 0, input_display);
 
             blinkN(gpio, pin_led_red, 1); // red blink * 1
             blinkN(gpio, pin_led_green, press_count); // green blink * press_count
@@ -1041,7 +1041,7 @@ int main(int argc, char **argv){
 
     if (stats.found) {
         blinkN(gpio, pin_led_green, 2); // green blinks twice to show a result found
-        lcd_write_row(gpio, 0, "PIN found");
+        lcd_write_row(gpio, 1, "PIN found");
         
         char pin_str[17] = {0};
         char temp[12];
@@ -1050,9 +1050,9 @@ int main(int argc, char **argv){
             snprintf(temp, sizeof(temp), "%d", stats.found_seq[i]);
             strncat(pin_str, temp, sizeof(pin_str) - strlen(pin_str) - 1);
         }
-        lcd_write_row(gpio, 1, pin_str);
+        lcd_write_row(gpio, 0, pin_str);
     } else {
-        lcd_write_row(gpio, 0, "PIN not found");
+        lcd_write_row(gpio, 1, "PIN not found");
     }
 
 cleanup:
