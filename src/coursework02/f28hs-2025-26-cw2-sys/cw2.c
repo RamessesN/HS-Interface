@@ -511,15 +511,6 @@ int main(int argc, char **argv){
         .found_seq = NULL
     };
 
-    stats.found_seq = calloc(seqlen, sizeof(int));
-
-    if (stats.found_seq == NULL) {
-        ERROR("calloc failed\n");
-        
-        ret = EXIT_FAILURE;
-        goto cleanup;
-    }
-
     int *attemptSeq = NULL, *ref_seq = NULL; 
     uint64_t start_time, stop_time;
     
@@ -562,7 +553,11 @@ int main(int argc, char **argv){
                 case 'S': opt_S = atoi(optarg); submitDelay = opt_S; break;
                 case 's': opt_s = atoi(optarg);                      break;
                 case 'r': opt_r = atoi(optarg);                      break;
-                case 'm': opt_m = atoi(optarg); digits = opt_m;      break;
+                case 'm': opt_m = atoi(optarg); if (opt_m < 1) { 
+                        ERRORF("Digits must be at least 1 (got %d)\n", opt_m);
+                        ret = EXIT_FAILURE;
+                        goto cleanup;
+                    } digits = opt_m;                                break;
                 case 'n': opt_n = atoi(optarg); seqlen = opt_n;      break;
                 case 't': task_mode = atoi(optarg);                  break; // task 4/5
                 default: ERRORF(
@@ -782,6 +777,15 @@ int main(int argc, char **argv){
         }
     }
 
+    stats.found_seq = calloc(seqlen, sizeof(int));
+
+    if (stats.found_seq == NULL) {
+        ERROR("calloc failed\n");
+        
+        ret = EXIT_FAILURE;
+        goto cleanup;
+    }
+
     if (!opt_r && !unit_test)
         waitForEnter(); // wait for `ENTER` key before continuing
 
@@ -858,7 +862,7 @@ int main(int argc, char **argv){
             LOGF("Digit %d recorded as: %d\n", i + 1, press_count);
 
             // add the latest inputted number to the LCD display and refresh
-            char temp_char[4];
+            char temp_char[16];
             snprintf(temp_char, sizeof(temp_char), "%d", press_count);
             strncat(input_display, temp_char, sizeof(input_display) - strlen(input_display) - 1);
             lcd_write_row(gpio, 1, input_display);
@@ -927,13 +931,12 @@ int main(int argc, char **argv){
                     if (stats.found_at == 0) { // `found_at` uses 1-based indexing
                         stats.found_at = stats.attempts;
                         memcpy(stats.found_seq, bf_seq, seqlen * sizeof(int));
+
+                        LOG("PIN found: ");
+                        showSeq(bf_seq, seqlen);
                     }
                 }
-
-                LOG("PIN found: ");
-                showSeq(bf_seq, seqlen);
-
-                if (!opt_e) break;
+                if (!opt_e && stats.found) break;
             }
             incseq(bf_seq, seqlen, digits);
         }
