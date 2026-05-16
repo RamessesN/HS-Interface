@@ -1,0 +1,36 @@
+\section{Application Output \& Testing}
+\label{sec:application_output}
+
+In this section, a series of specific command-line test cases are used to verify the pin-cracking application. All the tests are directly run on the Raspberry Pi, aiming to verify the correctness and efficiency of the system design through real runtime data.
+
+In order to verify the basic state flow, parameter parsing ability, and simulation verification mechanism of the program, we first execute:
+
+\vspace{0.5em}
+
+\begin{minted}{bash}
+sudo ./cw2 -v -d -S 500000 -s 312 -r 112
+\end{minted}
+
+The detailed output snapshot validates the command-line parser by accurately applying the 500,000-microsecond delay and bypassing hardware input via a reference sequence. Furthermore, the terminal output confirms the underlying cracking logic's correctness by demonstrating the complete lifecycle, from the initial Hamming distance calculation to the successful target sequence capture.
+%附录改
+See Appendix Fig \ref{app:fig8_1} for the corresponding test result.
+
+The second test is about performing a black-box verification on ARM assembly subroutine responsible for calculating Hamming distance. 
+
+\begin{minted}{bash}
+sudo ./cw2 -e -u -s 112 -r 121
+\end{minted}
+
+As illustrated in the Appendix Fig \ref{app:fig8_2}, the program calculates a Hamming distance of 2 between sequence 112 and reference 121, verifying the accuracy of underlying register alignment logic for cross-language data interaction.
+%附录改
+
+To evaluate the computational efficiency of the system when dealing with sequences of arbitrary length, exhaustive performance tests were run:
+
+\begin{minted}{bash}
+sudo ./cw2 -e -n 6 -m 12 -s 123123 -r 111123
+\end{minted}
+
+The environment extends the sequence length to 6 bits, the maximum of each input is increased to 12, and the exhaustive mode is enabled. 
+See Appendix Fig \ref{app:fig8_3} for the corresponding test result.
+
+The output clarifies the node to find the target sequence, and it shows the complete running trace of the program without early termination. The data shows that with the pruning of the constructive combinatorial search algorithm, the system accurately locks the number of expensive submit verifications that is 1,816 times, and the overall running time is only about 0.16 seconds. This confirms the performance analysis strategy about reducing the search space and memory dynamic management mentioned above.

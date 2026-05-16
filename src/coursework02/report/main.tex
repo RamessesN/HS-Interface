@@ -1,0 +1,113 @@
+\documentclass[10pt,conference]{IEEEtran}
+
+\ifCLASSOPTIONcompsoc
+  \usepackage[nocompress]{cite}
+\else
+  \usepackage{cite}
+\fi
+
+% --- Graphic & Mathematics ---
+\usepackage{graphicx}
+\usepackage{amsmath,amsfonts}
+
+% --- Algorithm & Tables ---
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{booktabs}
+\renewcommand{\arraystretch}{1.3}
+
+% --- Color & Links ---
+\usepackage[dvipsnames]{xcolor} 
+\usepackage[
+    colorlinks=true, 
+    linkcolor=blue, 
+    citecolor=blue,
+    urlcolor=blue
+]{hyperref}
+
+% --- Code Highlight ---
+\usepackage{minted}
+\setminted{
+    breaklines=true, 
+    fontsize=\footnotesize, 
+    linenos,
+    frame=single,
+    xleftmargin=1em,
+    numbersep=5pt
+}
+
+% --- Section Style ---
+\usepackage{titlesec}
+\titleformat{\section}
+{\normalfont\large\bfseries}
+{\thesection}
+{1em}
+{}
+
+\titleformat{\subsection}
+{\normalfont\normalsize\bfseries}
+{\thesubsection}
+{1em}
+{}
+
+% --- Numbering Style ---
+\renewcommand{\thesection}{\arabic{section}}
+\renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}}
+
+% --- Other Tools ---
+\usepackage{url}
+\ifCLASSOPTIONcompsoc
+  \usepackage[caption=false,font=footnotesize,labelfont=sf,textfont=sf]{subfig}
+\else
+  \usepackage[caption=false,font=footnotesize]{subfig}
+\fi
+
+% --- Bibliography ---
+\bibliographystyle{unsrt}
+
+% --- User Info ---
+\newcommand{\studentonename}{Shijia Luo}
+\newcommand{\studenttwoname}{Yuwei Zhao}
+\newcommand{\studentonenumber}{H00460252}
+\newcommand{\studenttwonumber}{H00460398}
+\newcommand{\labgroup}{CW2 Group19}
+\newcommand{\labdate}{2026-05-10}
+\newcommand{\course}{F28HS - Hardware-Software Interface}
+\newcommand{\labtitle}{CW2 Report}
+
+% --- Title ---
+\title{
+    \vspace{-1cm}
+    \textbf{\labtitle}\\[0.3em]
+    \Large \course
+}
+\author{
+    \studentonename~(\studentonenumber)
+    \quad
+    \studenttwoname~(\studenttwonumber) \\[0.5em]
+    \labgroup \quad \labdate
+}
+\date{}
+
+\pagestyle{plain}
+
+\begin{document}
+    \maketitle
+    \thispagestyle{plain}
+    
+    \input{bodies/introduction}
+    \input{bodies/hardware_specification}
+    \input{bodies/work_division}
+    \input{bodies/code_structure}
+    \input{bodies/performance}
+    \input{bodies/hardware_access}
+    \input{bodies/hamming}
+    \input{bodies/sample_output}
+    \input{bodies/conclusion}
+    \appendix  % 开启附录模式
+    \input{bodies/appendix}  % 你的附录内容
+\end{document}

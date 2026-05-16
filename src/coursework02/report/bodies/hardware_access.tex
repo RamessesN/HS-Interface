@@ -1,0 +1,32 @@
+\section{Hardware Access: C vs. Assembler}
+\label{sec:hardware_access}
+
+In this project, direct access to the underlying hardware of the Raspberry Pi (led, button, LCD display) is achieved through the memory-mapped I/O (MMIO) mechanism. In the initialization phase of the main program, the C language is used to call the \texttt{mmap} function to map the physical GPIO base address of the Raspberry Pi into the virtual memory space. In order to balance the flexibility of address calculation and the accuracy of underlying physical register operation, the program uses a mixed programming mode combining C and inline ARM assembly. There are three core functions that directly access the hardware, which are responsible for pin mode configuration, digital level output, and digital level input, respectively.
+
+- \noindent \textbf{\texttt{pin\_mode}} It is used to configure a specific GPIO pin to input / output mode. The C language part is responsible for the arithmetic operation to calculate the \texttt{word\_offset} and the specific shift \texttt{fsel\_shift} of the GPIO Function Select register \texttt{GPFSEL} of the desired pin for the hardware design controls the mode of each pin by three consecutive bits. Then the inline assembler takes over and loads the GPIO base address into the \texttt{R2} register. It reads the current register value using the \texttt{LDR}, cleans the old mode bits by displacement using the \texttt{BIC}, writes the new mode mask passed in from C via the \texttt{ORR}, and writes the modified value back to the register using the \texttt{STR}, ensuring that only the specific pin is updated without affecting the settings of other pins sharing the same register.
+
+- \noindent \textbf{\texttt{digital\_write}} It is used to control led on / off and send high / low levels to LCD data pins. C language is responsible for the conditional branch and addressing calculation, which determines whether to operate the pin set register \texttt{GPSET0} or zero register \texttt{GPCLR0} based on the passed level value HIGH / LOW and calculates the corresponding memory offset and the specific bitwise left shift. The inline assembler focuses on efficient writes at the hardware level and also follows the hard rules of storing the base address in the \texttt{R2} register. It utilizes the \texttt{LSL} to generate a mask containing only the target bit of 1 and writes data directly to the selected physical register via the \texttt{STR}. Since \texttt{GPSET} and \texttt{GPCLR} registers are designed so that writing a ``1'' triggers the action while writing a ``0'' has no effect and not interfere with each other on the hardware physical level, the assembly part directly eliminates the step of reading the original value, which improves the writing efficiency.
+
+- \noindent \textbf{\texttt{read\_button}} It is used to high-frequency polling to read the current level status of the physical button. While the C logic of the function computes the address offset of the pin level register \texttt{GPLEV0} and the specific displacement of the desired pin in the 32-bit register, the inline assembler code uses the \texttt{LDR} to read the current system snapshot of the entire 32-bit pin level register after loading the physical base address into the \texttt{R2} register. The \texttt{LSR} was used to move the target bit logic right to the least significant bit \texttt{LSB}, \texttt{AND} was used to perform bitwise and operation with the constant 1, so as to separate the 0 / 1 state of the target pin, and return the variable assigned to the C language layer to the caller.
+
+In order to show the collaborative working mode of C language and inline ARM assembly mode clearly, the following shows the specific implementation of \texttt{digital\_write} function, which reflects the communication between upper logical calculation and underlying physical address access.
+
+\begin{minted}{c}
+void digital_write (volatile uint32_t *gpio, int pin, int value) {
+    int reg_offset = (value == HIGH) ? GPIO_GPSET0 : GPIO_GPCLR0;
+    int word_offset = reg_offset + (pin / 32);
+    int bit_shift = pin % 32;
+
+    __asm__ volatile (
+        "MOV r2, %[base] \n\t"              // load the raw GPIO base addr to R2
+        "MOV r1, #1 \n\t"
+        "LSL r1, r1, %[shift] \n\t"         // create bit mask
+        "STR r1, [r2, %[off], LSL #2] \n\t" // write to GPSET/GPCLR
+        :
+        : [base] "r" (gpio), [off] "r" (word_offset), [shift] "r" (bit_shift)
+        : "r1", "r2", "memory"
+    );
+}
+\end{minted}
+
+As shown in the preceding code, the C language is responsible for the hardware abstraction layer, which dynamically decides to manipulate the set / reset registers based on the incoming logic level state and precomputes the word offset and displacement. The subsequent inline assembler block receives these calculations as placeholders and enforces the underlying design constraint of storing the GPIO base address in the \texttt{r2} register in the first instruction \texttt{MOV r2, \%[base]}. The assembly part finally writes memory-mapped registers efficiently with a single \texttt{STR} via indirect addressing mode with logical left shift \texttt{[r2, \%[off], LSL \#2]}. This design not only ensures high execution efficiency, but also confirms the control over the characteristics of the target hardware architecture.

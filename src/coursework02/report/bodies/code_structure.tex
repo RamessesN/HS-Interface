@@ -1,0 +1,40 @@
+\section{Code Structure \& Main Functions}
+\label{sec:software_design}
+
+The software architecture of this project follows the modular design principle of high cohesion and low coupling. The program uses C language as the main body, and the implementation separates hardware control from the cracking algorithm through modular functions. The whole code is composed of key modules like entry control, exception flow management, data initialization, verification simulation and core recursive search. The following are the main functions responsible for the core logic in the system and their functional details:
+
+- \noindent \textbf{\texttt{main}} It is the core master function that drives the entire application. \texttt{getopt} was used to loop through complex command line parameters and parse out configuration information such as task mode, sequence length, delay parameter and whether to start exhaustive search. This function is responsible for preparing the hardware initialization by mapping the physical GPIO registers of the Raspberry Pi to the user space memory via \texttt{mmap}. The execution phase is mainly divided into three stages --- greeting display, button sequence input, and password cracking search. When the program terminates normally or catches an exception, the memory release and hardware state reconstruction are uniformly executed through a unique \texttt{cleanup} tag.
+
+- \noindent \textbf{\texttt{initITimer} \& \texttt{timer\_handler}} These two functions work together to implement non-blocking hardware rotation using the interval timers of the Linux kernel. \texttt{initITimer} wraps the \texttt{setitimer} and \texttt{sigaction} system calls to start a timer that decrements real events. When a timer emits the \texttt{SIGALRM} signal, the kernel interrupts the current process and invokes the \texttt{timer\_handler} function to set the global timeout bit \texttt{timeout\_flag} to true. This design separates the time judgment logic from the high-frequency GPIO state reading, ensuring the time sensitivity and accuracy when reading the button input.
+
+- \noindent \textbf{\texttt{initSeq} \& \texttt{readSeq}} These two functions are responsible for the generation and loading of PIN sequences in memory. \texttt{initSeq} exploits the random number generation of the system to generate secret sequences for the device to act as the target password and allocate them to the dynamic memory. \texttt{readSeq} takes the command line integer arguments, parses them bit by bit, and converts them into a standard array format. Simultaneously, it contains a check logic for out-of-bounds input, which ensures that the data structure is in a safe state before the algorithm is executed.
+
+- \noindent \textbf{\texttt{submit\_pin}} In the real password cracking scenario, the password verification of the system is often associated with high computation or network delay. This function introduces a customizable blocking delay by calling \texttt{usleep} to simulate the verification cost. The underlying assembler is called to calculate the Hamming distance between the current guess sequence and the secret sequence, and then set it as the return value. This function is the only interface between the high-level search algorithm and the low-level decision logic.
+
+- \noindent \textbf{\texttt{choose\_positions} \& \texttt{generate\_values}} These two functions constitute the core algorithmic components in Task 5 to cope with arbitrarily long sequence cracking. In order to solve the state space explosion problem caused by brute-force search, the program adopts the Hamming distance based pre-pruning and backtracking strategy. \texttt{choose\_positions} is the outer recursion that picks out all possible positions in the sequence based on the known Hamming distance. \texttt{generate\_values} is responsible for the inner recursion that enumerates all legal numeric changes at the selected index position. The two-level recursive method ensures that the program only generates valid candidate sequences that completely conform to the characteristics of Hamming distance, which fundamentally reduces the dimension of the search space and optimizes the performance.
+
+The following snippet extracts the core validation logic of the inner recursive function and shows how it intercept the generation and submission of invalid states based on the Hamming distance:
+
+\begin{minted}{c}
+if (depth == code) {
+    stats->attempts++;
+    stats->submits++;
+
+    int result = submit_pin(guess_seq, seqlen, submitDelay);
+
+    if (result == 0) {
+        stats->found = 1;
+
+        if (stats->found_at == 0) {
+            stats->found_at = stats->attempts;
+            memcpy(stats->found_seq, guess_seq, seqlen * sizeof(int));
+
+            LOG("PIN found: ");
+            showSeq(guess_seq, seqlen);   
+        }
+    }
+    return;
+}
+\end{minted}
+
+In this code, the \texttt{submit\_pin} is called only if the recursion depth is equal to the target Hamming distance \texttt{code}, which avoids the traversal of useless search branches, significantly reduces the time complexity and achieves the using known information to optimize the cracking process.

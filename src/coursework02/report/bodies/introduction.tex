@@ -1,0 +1,8 @@
+\section{Introduction}
+\label{sec:introduction}
+
+This purpose of this report is to clarify the development and analysis process of F28HS course programming project, the core of which is to develop an underlying system application program based on C and ARM assembly language, and run on the Raspberry Pi platform connected with external devices. The application aims at a deep understanding of the interactions between embedded hardware and external devices, and enables precise control of these interactions through the underlying code, covering resource management and time-sensitive operations.
+
+In terms of the application implementation, the PinCrack password breaking system was successfully developed in this project, that is, we built a device that can accurately calculate and guess the secret PIN based on the proximity information between the guessed PIN and the correct PIN. The main interaction process of the system is the user inputs a sequence of numbers through a button as the input device, the Raspberry Pi will calculate the Hamming distance between the input sequence and the preset secret sequence, and return the alignment information through the LED flashing and the LCD display. The information provided by the Hamming distance is used as the pruning condition of the algorithm, and all possible values are efficiently searched to find the true secret sequence.
+
+The following chapters will analyze and summarize the hardware connection, team division, code architecture, underlying hardware access interface and system performance.

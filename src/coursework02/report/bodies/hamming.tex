@@ -1,0 +1,37 @@
+\section{Hamming Function Interface}
+\label{sec:hamming}
+
+In this project, the calculation of Hamming distance is the core operation with the highest frequency and the most significant impact on the overall performance of the search algorithm. To ensure the efficiency and to apply low-level system programming, the function is encapsulated in an independent ARM assembly source file named \texttt{hamming.s}. Serving as the computational engine, this subroutine is called cross-language from the C main program to perform fast comparisons and count the differing bits between two equal length integer arrays.
+
+In terms of interface definition and parameter passing, the prototype of C language exposed by the assembler function is an integer return function accepting two integer pointers and an integer length parameter. In the low-level implementation, the program strictly follows ARM Procedure Call Standard (AAPCS). In particular, when the assembler subroutine is invoked by the main program, registers \texttt{R0} and \texttt{R1} are implicitly allocated to hold the head address pointers of the first and second integer arrays to be aligned, respectively, and register \texttt{R2} is used to pass the current sequence length to be aligned. When the core comparison logic is executed, the Hamming distance calculation result, which represents the total number of unequal elements in the two arrays, is stored in the \texttt{R0} register and safely returned to the main call function with the jump of the program counter.
+
+For the internal logic of subroutines, the assembly implementation adopts an efficient self-decreasing loop iteration structure. The subroutine saves the state of \texttt{R4}, \texttt{R5} and link register \texttt{LR} through the stack push instruction. In the main loop body, the program uses the \texttt{load} with the automatic post-increment mechanism to automatically move the pointer address back while reading the current element of the memory array, which reduces the addressing overhead. The core comparison decision completely depends on the conditional execution characteristics of ARM instruction set. The program first updates the subtraction status flag of the elements in the two registers, and then directly uses the unequal status code to perform conditional addition.
+
+In order to show the above mechanism, the core code implementation of the assembly subroutine is extracted as follows:
+
+\begin{minted}{c}
+.global hamming
+	
+hamming:
+    PUSH {R4, R5, LR}
+    MOV R3, #0
+
+loop_start:
+    CMP R2, #0
+    BEQ loop_end
+
+    LDR R4, [R0], #4
+    LDR R5, [R1], #4
+
+    CMP R4, R5
+    ADDNE R3, R3, #1
+
+    SUB R2, R2, #1
+    B loop_start
+
+loop_end:
+    MOV R0, R3
+    POP {R4, R5, PC}
+\end{minted}
+
+As shown above, the \texttt{R3} register is allocated to be used as a local accumulation counter. The loop terminates when the residual length register \texttt{R2} decrements to 0. Finally, the program transferred the accumulated Hamming distance results in \texttt{R3} to the specified return value register \texttt{R0}, and recovered the original context through the stack operation and returned to the C language running environment exactly. 
