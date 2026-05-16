@@ -54,6 +54,7 @@
 #include <math.h>
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>
 
 #include "cw2-config.h"
 #include "cw2-aux.h"
@@ -489,6 +490,37 @@ void choose_positions(
 }
 
 /**
+ * @brief Safely parse a positive integer from command-line argument.
+ *
+ * @param str       Input string.
+ * @param out       Output integer.
+ * @param opt_name  Option name for error messages.
+ *
+ * @return true on success, false on failure.
+ */
+bool parse_positive_int(const char *str, int *out, const char *opt_name) {
+    char *endptr;
+    long val;
+
+    errno = 0;
+
+    val = strtol(str, &endptr, 10);
+
+    if (errno != 0 || *endptr != '\0') {
+        ERRORF("Invalid numeric argument for %s: %s\n", opt_name, str);
+        return false;
+    }
+
+    if (val < 1 || val > INT_MAX) {
+        ERRORF("Value out of range for %s: %s\n", opt_name, str);
+        return false;
+    }
+
+    *out = (int)val;
+    return true;
+}
+
+/**
  * @brief Main func.
  * 
  * @param argc Argument count.
@@ -550,23 +582,57 @@ int main(int argc, char **argv){
                 case 'e': opt_e = true;                              break;
                 case 'l': opt_l = true;                              break; // LCD test only
                 case 'u': unit_test = true;                          break;
-                case 'S': opt_S = atoi(optarg); submitDelay = opt_S; break;
-                case 's': opt_s = atoi(optarg);                      break;
-                case 'r': opt_r = atoi(optarg);                      break;
-                case 'm': opt_m = atoi(optarg); if (opt_m < 1) { 
-                        ERRORF("Digits must be at least 1 (got %d)\n", opt_m);
+                case 'S': 
+                    if (!parse_positive_int(optarg, &opt_S, "-S")) {
                         ret = EXIT_FAILURE;
                         goto cleanup;
-                    } digits = opt_m;                                break;
-                case 'n': opt_n = atoi(optarg); seqlen = opt_n;      break;
-                case 't': task_mode = atoi(optarg);                  break; // task 4/5
-                default: ERRORF(
-                    "Usage: %s [-h] [-v] [-d] [-e] [-m <maxval> ] [-n <seqlen>] [-u <seq1> <seq2>] [-s <secret seq>] [-r <reference seq>]\n", 
-                    argv[0]
-                ); 
+                    }
+                    submitDelay = opt_S;
+                    break;
+                case 's':
+                    if (!parse_positive_int(optarg, &opt_s, "-s")) {
+                        ret = EXIT_FAILURE;
+                        goto cleanup;
+                    }
+                    break;
+                case 'r': 
+                    if (!parse_positive_int(optarg, &opt_r, "-r")) {
+                        ret = EXIT_FAILURE;
+                        goto cleanup;
+                    }
+                    break;
+                case 'm':
+                    if (!parse_positive_int(optarg, &opt_m, "-m")) {
+                        ret = EXIT_FAILURE;
+                        goto cleanup;
+                    }
+                    digits = opt_m;
+                    break;
+                case 'n':
+                    if (!parse_positive_int(optarg, &opt_n, "-n")) {
+                        ret = EXIT_FAILURE;
+                        goto cleanup;
+                    }
+                    seqlen = opt_n;
+                    break;
+                case 't': // task 4/5
+                    if (!parse_positive_int(optarg, &task_mode, "-t")) {
+                        ret = EXIT_FAILURE;
+                        goto cleanup;
+                    }
 
-                ret = EXIT_FAILURE;
-                goto cleanup;
+                    if (task_mode != 4 && task_mode != 5) {
+                        ERROR("Task mode must be either 4 or 5\n");
+                        ret = EXIT_FAILURE;
+                        goto cleanup;
+                    }
+                    break;
+                default: 
+                    ERRORF(
+                        "Usage: %s [-h] [-v] [-d] [-e] [-m <maxval> ] [-n <seqlen>] [-u <seq1> <seq2>] [-s <secret seq>] [-r <reference seq>]\n", argv[0]
+                    ); 
+                    ret = EXIT_FAILURE;
+                    goto cleanup;
             }
         }
     }
